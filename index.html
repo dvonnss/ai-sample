@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 2026-11-19 rev.11 — 신청 버튼 4개(헤더·① 첫 화면·⑦ 참가비·⑨ 마지막)를 누르면 신청 팝업이 열림 · 이름/연락처/이메일(필수)·소속/직위 입력 → D1(applicants)에 저장(/api/apply) → 같은 팝업에 "신청이 완료되었습니다"와 신청 정보 + [닫기] · 헤더·첫 화면 버튼의 토스트 연결은 해제(토스트 코드는 남겨 둠) -->
+<!-- 2026-11-19 rev.10 — 신청 완료 알림(토스트): 위치를 화면 아래 → 화면 한가운데로 · 배경색을 검정 → 와인색(#7b1e3a)으로 (글자 색 연두는 그대로) -->
+<!-- 2026-11-19 rev.9 — 헤더 [신청하기] · ① 첫 화면 [지금 신청하기]를 누르면 "신청이 완료되었습니다!" 알림(토스트)이 화면 아래 가운데에 2.5초 동안 뜸 (화면 알림만, 신청 내용 저장 없음) -->
 <!-- 2026-11-19 rev.8 — ① 첫 화면(PC만): 신청 버튼을 카운트다운 숫자 박스와 같은 줄로 정렬 -->
 <!-- 2026-11-19 rev.7 — ① 첫 화면: 신청 버튼 높이 60px로 카운트다운 박스와 맞춤 · 카운트다운 숫자 색을 버튼 배경색(연두)으로 -->
 <!-- 2026-11-19 rev.6 — ① 첫 화면: [지금 신청하기] 옆에 카운트다운 추가 (2026-12-12 14:00 한국 시간까지 · 1초마다 줄어듦 · 휴대폰은 버튼 아래) -->
@@ -11,7 +14,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>rev.8 AI 특강 신청 페이지 — PC 신청 버튼·카운트다운 정렬</title>
+<title>rev.11 AI 특강 신청 페이지 — 신청 팝업 · DB 저장</title>
 <meta name="description" content="호서대학교 × 일잘러랩 AI 특강 — 퇴근이 빨라지는 AI 업무 활용법">
 <!-- rev.3: Pretendard 글꼴 (화면에 쓰인 글자 묶음만 내려받아 가볍게) -->
 <link rel="stylesheet" href="fonts/pretendard/pretendardvariable-dynamic-subset.css">
@@ -240,6 +243,67 @@
   .site-footer strong { color: #fff; }
   .copyright { margin-top: 14px; color: rgba(255,255,255,0.45); font-size: 13px; }
 
+  /* ===== rev.9: 신청 완료 알림(토스트) · rev.10: 화면 한가운데 + 와인색 바탕 (글자는 연두 그대로) ===== */
+  .toast {
+    position: fixed; left: 50%; top: 50%; z-index: 100; /* rev.10: 아래 → 화면 한가운데 */
+    transform: translate(-50%, calc(-50% + 16px));
+    max-width: calc(100% - 40px);
+    background: #7b1e3a; color: var(--lime); /* rev.10: 배경 검정 → 와인색 */
+    font-size: 16px; font-weight: 700; text-align: center;
+    padding: 14px 22px; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s;
+  }
+  .toast.is-show { opacity: 1; visibility: visible; transform: translate(-50%, -50%); }
+  /* 움직임 줄이기 설정을 켠 방문자는 미끄러지는 효과 없이 바로 표시 */
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+  /* ===== rev.11: 신청 팝업 (페이지 위에 겹쳐 뜨는 창) ===== */
+  .modal[hidden] { display: none; }
+  .modal {
+    position: fixed; inset: 0; z-index: 200;
+    display: grid; place-items: center; padding: 16px;
+  }
+  .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+  .modal-dialog {
+    position: relative; width: 100%; max-width: 440px;
+    max-height: calc(100vh - 32px); overflow-y: auto;
+    background: #fff; color: var(--ink);
+    border-radius: 16px; padding: 28px 22px 22px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+  }
+  .modal-x {
+    position: absolute; top: 10px; right: 10px;
+    width: 40px; height: 40px; border: 0; border-radius: 50%;
+    background: transparent; font-size: 24px; line-height: 1; cursor: pointer; color: var(--ink-soft);
+  }
+  .modal-x:hover { background: var(--bg-soft); }
+  .modal-title {
+    display: inline-block; background: var(--lime); color: var(--ink);
+    font-size: 15px; font-weight: 800; padding: 6px 12px; border-radius: 6px;
+    margin: 0 40px 20px 0;
+  }
+  .form-field { display: grid; gap: 6px; margin-bottom: 14px; }
+  .form-field label { font-size: 14px; font-weight: 700; }
+  .form-field .req { color: #c62828; margin-left: 2px; }
+  .form-field .opt { color: #999; font-weight: 500; font-size: 13px; margin-left: 4px; }
+  .form-field input {
+    width: 100%; height: 48px; padding: 0 14px;
+    font: inherit; font-size: 16px; /* 16px 이상이어야 아이폰에서 화면이 저절로 확대되지 않음 */
+    border: 1px solid #cfcfcf; border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  .form-field input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--lime); }
+  .form-field input[aria-invalid="true"] { border-color: #c62828; }
+  .form-error { min-height: 20px; color: #c62828; font-size: 14px; font-weight: 600; margin: 4px 0 12px; }
+  .modal .btn[disabled] { opacity: 0.6; cursor: wait; }
+  .done-title { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 16px; }
+  .done-info { border-top: 1px solid var(--line); margin-bottom: 22px; }
+  .done-info div { display: grid; grid-template-columns: 64px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .done-info dt { color: var(--ink-soft); font-weight: 600; }
+  .done-info dd { font-weight: 700; word-break: break-all; }
+  body.modal-open { overflow: hidden; } /* 팝업이 열려 있는 동안 뒤 페이지가 스크롤되지 않게 */
+
   /* ===== 컴퓨터 화면 ===== */
   @media (min-width: 768px) {
     section { padding: 96px 0; }
@@ -272,7 +336,7 @@
       <span class="photo-name">hoseo_logo.png</span>
       <span class="photo-img" style="background-image:url('images/hoseo_logo.png')"></span>
     </div>
-    <button type="button" class="btn">신청하기</button>
+    <button type="button" class="btn" data-open-apply>신청하기</button><!-- rev.11: 누르면 신청 팝업 -->
   </div>
 </header>
 
@@ -296,7 +360,7 @@
       </ul>
       <!-- rev.6: 신청 버튼 + 카운트다운 -->
       <div class="hero-actions">
-        <button type="button" class="btn">지금 신청하기</button>
+        <button type="button" class="btn" data-open-apply>지금 신청하기</button><!-- rev.11: 누르면 신청 팝업 -->
         <div class="countdown" role="timer" aria-label="특강 시작까지 남은 시간">
           <p class="cd-title">특강 시작까지</p>
           <div class="cd-units">
@@ -428,7 +492,7 @@
         <p class="price-old">49,000원</p>
         <p class="price-new"><span>39,000원</span></p>
         <p class="price-note">템플릿 30개 · 실습 자료 PDF · 1개월 질문방 포함</p>
-        <button type="button" class="btn btn-dark btn-block">지금 신청하기</button>
+        <button type="button" class="btn btn-dark btn-block" data-open-apply>지금 신청하기</button><!-- rev.11: 누르면 신청 팝업 -->
       </div>
     </div>
   </section>
@@ -463,7 +527,7 @@
     <div class="wrap">
       <h2>다음 주부터,<br>퇴근이 빨라집니다</h2>
       <p>자리가 차면 조기 마감됩니다.</p>
-      <button type="button" class="btn btn-dark">지금 신청하기</button>
+      <button type="button" class="btn btn-dark" data-open-apply>지금 신청하기</button><!-- rev.11: 누르면 신청 팝업 -->
     </div>
   </section>
 
@@ -478,6 +542,220 @@
     <p class="copyright">© 2026 일잘러랩</p>
   </div>
 </footer>
+
+<!-- rev.11: 신청 팝업 — 평소에는 숨어 있다가 신청 버튼을 누르면 열림 -->
+<div class="modal" id="apply-modal" hidden>
+  <div class="modal-backdrop" data-close-apply></div>
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="apply-modal-title">
+    <button type="button" class="modal-x" data-close-apply aria-label="닫기">×</button>
+    <p class="modal-title" id="apply-modal-title">호서대학교 × 일잘러랩 AI 특강</p>
+
+    <!-- 1) 입력 화면 -->
+    <form id="apply-form" novalidate>
+      <div class="form-field">
+        <label for="apply-name">이름<span class="req">*</span></label>
+        <input id="apply-name" name="name" type="text" autocomplete="name" maxlength="50" required>
+      </div>
+      <div class="form-field">
+        <label for="apply-phone">연락처<span class="req">*</span></label>
+        <input id="apply-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="010-0000-0000" required>
+      </div>
+      <div class="form-field">
+        <label for="apply-email">이메일<span class="req">*</span></label>
+        <input id="apply-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="example@email.com" required>
+      </div>
+      <div class="form-field">
+        <label for="apply-company">소속<span class="opt">(선택)</span></label>
+        <input id="apply-company" name="company" type="text" autocomplete="organization" maxlength="100">
+      </div>
+      <div class="form-field">
+        <label for="apply-position">직위<span class="opt">(선택)</span></label>
+        <input id="apply-position" name="position" type="text" autocomplete="organization-title" maxlength="50">
+      </div>
+      <p class="form-error" id="apply-error" role="alert"></p>
+      <button type="submit" class="btn btn-block" id="apply-submit">신청하기</button>
+    </form>
+
+    <!-- 2) 완료 화면 (저장이 끝나면 입력 화면 대신 보임) -->
+    <div id="apply-done" hidden>
+      <p class="done-title">신청이 완료되었습니다</p>
+      <dl class="done-info">
+        <div><dt>이름</dt><dd id="done-name"></dd></div>
+        <div><dt>연락처</dt><dd id="done-phone"></dd></div>
+        <div><dt>이메일</dt><dd id="done-email"></dd></div>
+        <div><dt>소속</dt><dd id="done-company"></dd></div>
+        <div><dt>직위</dt><dd id="done-position"></dd></div>
+      </dl>
+      <button type="button" class="btn btn-dark btn-block" data-close-apply>닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- rev.11: 신청 팝업 동작 (열기 · 입력 검사 · 저장 요청 · 완료 화면 · 닫기) -->
+<script>
+  (function () {
+    var modal = document.getElementById('apply-modal');
+    var form = document.getElementById('apply-form');
+    var doneBox = document.getElementById('apply-done');
+    var errorEl = document.getElementById('apply-error');
+    var submitBtn = document.getElementById('apply-submit');
+    if (!modal || !form || !doneBox || !errorEl || !submitBtn) return;
+
+    var EMAIL_RULE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    var lastOpener = null;   // 팝업을 연 버튼 (닫으면 그 버튼으로 돌아감)
+    var isSending = false;   // 저장 중 중복 클릭 방지
+
+    // 팝업 열기: 항상 빈 입력 화면부터
+    function openModal(event) {
+      lastOpener = event.currentTarget;
+      form.reset();
+      clearErrors();
+      form.hidden = false;
+      doneBox.hidden = true;
+      modal.hidden = false;
+      document.body.classList.add('modal-open');
+      document.getElementById('apply-name').focus();
+    }
+
+    // 팝업 닫기 (저장 중에는 닫히지 않음)
+    function closeModal() {
+      if (isSending) return;
+      modal.hidden = true;
+      document.body.classList.remove('modal-open');
+      if (lastOpener) lastOpener.focus();
+    }
+
+    function clearErrors() {
+      errorEl.textContent = '';
+      var inputs = form.querySelectorAll('input');
+      for (var i = 0; i < inputs.length; i++) inputs[i].removeAttribute('aria-invalid');
+    }
+
+    function showError(message, inputEl) {
+      errorEl.textContent = message;
+      if (inputEl) { inputEl.setAttribute('aria-invalid', 'true'); inputEl.focus(); }
+    }
+
+    // 입력값 읽기 (앞뒤 빈칸 제거)
+    function readForm() {
+      return {
+        name: form.elements.name.value.trim(),
+        phone: form.elements.phone.value.trim(),
+        email: form.elements.email.value.trim(),
+        company: form.elements.company.value.trim(),
+        position: form.elements.position.value.trim()
+      };
+    }
+
+    // 화면에서 먼저 검사 (서버에서도 한 번 더 검사함)
+    function validate(data) {
+      if (!data.name) return showError('이름을 입력해 주세요.', form.elements.name), false;
+      if (!data.phone) return showError('연락처를 입력해 주세요.', form.elements.phone), false;
+      var digits = data.phone.replace(/[^0-9]/g, '');
+      if (!/^[0-9\-\s+()]+$/.test(data.phone) || digits.length < 9 || digits.length > 13) {
+        return showError('연락처를 숫자로 정확히 입력해 주세요.', form.elements.phone), false;
+      }
+      if (!data.email) return showError('이메일을 입력해 주세요.', form.elements.email), false;
+      if (!EMAIL_RULE.test(data.email)) return showError('이메일 형식을 확인해 주세요.', form.elements.email), false;
+      return true;
+    }
+
+    // 완료 화면에 신청 정보 표시 (글자로만 넣어서 안전하게)
+    function showDone(data) {
+      document.getElementById('done-name').textContent = data.name;
+      document.getElementById('done-phone').textContent = data.phone;
+      document.getElementById('done-email').textContent = data.email;
+      document.getElementById('done-company').textContent = data.company || '-';
+      document.getElementById('done-position').textContent = data.position || '-';
+      form.hidden = true;
+      doneBox.hidden = false;
+      doneBox.querySelector('[data-close-apply]').focus();
+    }
+
+    function setSending(sending) {
+      isSending = sending;
+      submitBtn.disabled = sending;
+      submitBtn.textContent = sending ? '저장 중…' : '신청하기';
+    }
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (isSending) return;
+      clearErrors();
+      var data = readForm();
+      if (!validate(data)) return;
+
+      setSending(true);
+      fetch('/api/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+        .then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (result) {
+            return { status: response.status, result: result };
+          });
+        })
+        .then(function (res) {
+          setSending(false);
+          if (res.status === 200 && res.result.ok) {
+            showDone(res.result.applicant || data);
+          } else if (res.status === 409) {
+            showError('이미 이 이메일로 신청하셨습니다.', form.elements.email);
+          } else if (res.status === 400 && res.result.message) {
+            showError(res.result.message);
+          } else {
+            showError('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+          }
+        })
+        .catch(function () {
+          setSending(false);
+          showError('인터넷 연결을 확인하고 다시 시도해 주세요.');
+        });
+    });
+
+    // 신청 버튼 4개에 연결
+    var openButtons = document.querySelectorAll('[data-open-apply]');
+    for (var i = 0; i < openButtons.length; i++) openButtons[i].addEventListener('click', openModal);
+
+    // 닫기: ×버튼 · [닫기] 버튼 · 바깥 어두운 곳 클릭 · Esc 키
+    var closeButtons = modal.querySelectorAll('[data-close-apply]');
+    for (var j = 0; j < closeButtons.length; j++) closeButtons[j].addEventListener('click', closeModal);
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !modal.hidden) closeModal();
+    });
+  })();
+</script>
+
+<!-- rev.9: 신청 완료 알림(토스트) — 평소에는 숨어 있다가 버튼을 누르면 나타남 · 화면 읽기 프로그램도 읽어 줌 -->
+<div class="toast" id="apply-toast" role="status" aria-live="polite"></div>
+
+<!-- rev.9: 신청 완료 알림 동작 (헤더·첫 화면 신청 버튼에만 연결) · rev.11: 버튼 연결 해제 — 지금은 동작하지 않음, 코드는 남겨 둠 -->
+<script>
+  (function () {
+    var toastEl = document.getElementById('apply-toast');
+    var buttons = document.querySelectorAll('[data-apply-toast]');
+    if (!toastEl || !buttons.length) return;
+
+    var SHOW_MS = 2500;   // 알림이 보이는 시간 (2.5초)
+    var hideTimer = null;
+
+    function showToast() {
+      // 여러 번 눌러도 알림은 하나만: 이전 사라짐 예약을 지우고 처음부터 2.5초
+      if (hideTimer) clearTimeout(hideTimer);
+      toastEl.textContent = '신청이 완료되었습니다!';
+      toastEl.classList.add('is-show');
+      hideTimer = setTimeout(function () {
+        toastEl.classList.remove('is-show');
+        hideTimer = null;
+      }, SHOW_MS);
+    }
+
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].addEventListener('click', showToast);
+    }
+  })();
+</script>
 
 <!-- rev.6: 카운트다운 (특강 시작 2026-12-12 14:00 한국 시간 = 05:00 UTC, 방문자 나라와 관계없이 같은 시각 기준) -->
 <script>
